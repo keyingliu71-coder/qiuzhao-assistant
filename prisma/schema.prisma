@@ -1,0 +1,152 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// 用户（数据铁律：公共岗位 ≠ 个人投递）
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String?
+  createdAt    DateTime @default(now())
+  applications Application[]
+  todos        Todo[]
+  evidence     Evidence[]
+  favorites    Favorite[]
+}
+
+// 公司（公共岗位数据，来自 offerio 采集）
+model Company {
+  id             String   @id @default(cuid())
+  sourceId       String?  @unique // offerio 原始 id（增量同步主键）
+  name           String
+  nature         String?  // 企业性质
+  industry       String?  // 行业
+  batch          String?  // 招聘批次
+  target         String?  // 招聘对象
+  location       String?  // 工作地点
+  positions      String?  // 岗位数 / 方向
+  updateDate     String?  // 更新时间
+  deadline       String?  // 截止时间
+  applyLink      String?  // 官方投递入口
+  hasWrittenTest String?  // 是否笔试
+  createdAt      DateTime @default(now())
+  jobs           Job[]
+  applications   Application[]
+  favorites      Favorite[]
+  matchScore     Int?     // AI 预评分（0-100），由同步流程后台批量写入
+  matchDetail    String?  // AI 预评分明细 JSON（summary/evidence/gaps）
+}
+
+// 具体岗位（公共岗位数据；真实 JD 由 ATS 采集器填）
+model Job {
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id])
+  title     String
+  location  String?
+  department String?
+  education String?
+  batch     String?
+  jdText    String?  // 完整 JD（真实采集后填）
+  jdSource  String?  // official / manual / demo
+  scrapedAt DateTime?
+  createdAt DateTime @default(now())
+  applications Application[]
+  @@index([companyId])
+}
+
+// 个人投递（点击“加入待投递”才产生；当前状态 ≠ 历史事件）
+model Application {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id])
+  jobId         String?
+  job           Job?     @relation(fields: [jobId], references: [id])
+  companyId     String?
+  company       Company? @relation(fields: [companyId], references: [id])
+  jobTitle      String   // 冗余：公司 · 岗位
+  stage         Int      @default(0) // 0待投递 1已投递未推进 2流程前期 3流程后期 4流程结束
+  stageName     String   @default("待投递")
+  subState      String?  // 子状态：待定制简历 / 已读未回 / 二面已完成 ...
+  subTone       String?  // 子状态色：terra/sand/dusty/sage/rose/gray
+  riskNote      String?  // 风险提示文案（卡片红条）
+  priority      String   @default("中")
+  satisfaction  String?
+  nextTodo      String?
+  resumeVersion String?
+  sourceUrl     String?  // 官方应聘记录/岗位链接（巡检跳转）
+  lastCheckedAt DateTime? // 最近一次巡检时间（投递后3天起每3天一次）
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  events        ApplicationEvent[]
+  todos         Todo[]
+  @@index([userId])
+}
+
+// 流程事件（每次变更一条，防止拖错丢历史）
+model ApplicationEvent {
+  id            String   @id @default(cuid())
+  applicationId String
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  type          String   // 状态变更 / 投递 / 面试 / 复盘
+  fromStage     Int?
+  toStage       Int?
+  note          String?
+  createdAt     DateTime @default(now())
+}
+
+// 统一证据库（AI 只读不改，建议更新需确认）
+model Evidence {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id])
+  fact          String
+  experience    String?
+  sourceFile    String?
+  confirmed     Boolean  @default(false)
+  writable      Boolean  @default(false) // 可写入简历
+  defenseLevel  String?  // 面试可辩护等级
+  metricOk      Boolean?
+  contributionOk Boolean?
+  risk          String?
+  createdAt     DateTime @default(now())
+}
+
+// 待办（按岗位存储，可增删改）
+model Todo {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id])
+  applicationId String?
+  application   Application? @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  text          String
+  done          Boolean  @default(false)
+  createdAt     DateTime @default(now())
+}
+
+// 收藏（公司招聘库「★ 收藏」入口的来源；资料库「收藏」分区消费）
+model Favorite {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  companyId String
+  company   Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  note      String?  // 备注，如「重点投递」
+  createdAt DateTime @default(now())
+  @@unique([userId, companyId])
+}
+
+// 同步元数据（自动同步轮询器写入：签名 / 上次同步时间 / 状态）
+model SyncMeta {
+  id          String   @id @default("singleton")
+  signature   String?  // offerio 内容指纹（total + 首条 id + 首条 updateDate）
+  lastSyncAt  DateTime?
+  status      String   @default("idle") // idle / syncing / ok / error
+  lastError   String?
+  updatedAt   DateTime @updatedAt
+}

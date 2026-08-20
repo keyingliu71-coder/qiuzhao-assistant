@@ -1,0 +1,18 @@
+# PostgreSQL 生产库（开发阶段用 SQLite，上线时切换）
+# 使用：docker compose up -d
+# 然后修改 .env：DATABASE_URL="postgresql://postgres:postgres@localhost:5432/qiuzhao?schema=public"
+# 并改 prisma/schema.prisma 的 datasource provider 为 "postgresql"，再执行 npx prisma migrate deploy
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: qiuzhao
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+volumes:
+  pgdata:
