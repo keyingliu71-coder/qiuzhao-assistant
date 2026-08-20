@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { prisma } from './prisma';
 import { prescoreCompany, isAIConfigured } from './ai';
 
@@ -98,6 +99,35 @@ async function fetchRemainingPages(p1: Page): Promise<OfferioCompany[]> {
   return all;
 }
 
+// 原生批量 upsert：一条 SQL 写入一整批，避免逐条 upsert 长时间占用连接
+async function bulkUpsert(companies: OfferioCompany[], existingSet: Set<string>) {
+  const COLS = ['id', 'sourceId', 'name', 'nature', 'industry', 'batch', 'target', 'location', 'positions', 'updateDate', 'deadline', 'applyLink', 'hasWrittenTest'];
+  const colList = COLS.map((c) => `"${c}"`).join(', ');
+  const updateSet = ['name', 'nature', 'industry', 'batch', 'target', 'location', 'positions', 'updateDate', 'deadline', 'applyLink', 'hasWrittenTest']
+    .map((c) => `"${c}" = EXCLUDED."${c}"`)
+    .join(', ');
+  const BATCH = 300;
+
+  let created = 0;
+  let updated = 0;
+  for (let i = 0; i < companies.length; i += BATCH) {
+    const slice = companies.slice(i, i + BATCH);
+    const phs: string[] = [];
+    const values: unknown[] = [];
+    for (const c of slice) {
+      const d = normalize(c);
+      const row = [randomUUID(), c.id, d.name, d.nature, d.industry, d.batch, d.target, d.location, d.positions, d.updateDate, d.deadline, d.applyLink, d.hasWrittenTest];
+      phs.push(`(${row.map((_, j) => `$${values.length + j + 1}`).join(', ')})`);
+      values.push(...row);
+      if (existingSet.has(c.id)) updated++;
+      else created++;
+    }
+    const sql = `INSERT INTO "Company" (${colList}) VALUES ${phs.join(', ')} ON CONFLICT ("sourceId") DO UPDATE SET ${updateSet}`;
+    await prisma.$executeRawUnsafe(sql, ...values);
+  }
+  return { created, updated };
+}
+
 // 全量同步（增量 upsert，保留个人投递/收藏/证据）
 export async function runSyncOnce(): Promise<SyncResult> {
   await setMeta({ status: 'syncing' });
@@ -117,29 +147,7 @@ export async function runSyncOnce(): Promise<SyncResult> {
   });
   const existingSet = new Set(existing.map((e) => e.sourceId));
 
-  let created = 0;
-  let updated = 0;
-  const CHUNK = 200;
-  const CONC_TX = 2;
-  const chunks: OfferioCompany[][] = [];
-  for (let i = 0; i < list.length; i += CHUNK) chunks.push(list.slice(i, i + CHUNK));
-  for (let i = 0; i < chunks.length; i += CONC_TX) {
-    const batch = chunks.slice(i, i + CONC_TX);
-    await Promise.all(batch.map(async (slice) => {
-      const ops = slice.map((c) => {
-        const isNew = !existingSet.has(c.id);
-        if (isNew) created++;
-        else updated++;
-        const data = normalize(c);
-        return prisma.company.upsert({
-          where: { sourceId: c.id },
-          update: data,
-          create: { sourceId: c.id, ...data },
-        });
-      });
-      await prisma.$transaction(ops);
-    }));
-  }
+  const { created, updated } = await bulkUpsert(list, existingSet);
 
   const signature = computeSignature(p1);
   await setMeta({ signature, status: 'ok', lastSyncAt: new Date() });
