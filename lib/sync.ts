@@ -3,7 +3,7 @@ import { prisma } from './prisma';
 import { prescoreCompany, isAIConfigured } from './ai';
 
 const API = 'https://offerio.work/api/recruitment/companies';
-const PAGE_SIZE = 200;
+const PAGE_SIZE = 100; // 接口实际固定每页 100
 const SINGLETON = 'singleton';
 
 type OfferioCompany = {
@@ -33,7 +33,6 @@ async function fetchPage(page: number, pageSize = PAGE_SIZE): Promise<Page> {
   const url = `${API}?page=${page}&pageSize=${pageSize}`;
   const res = await fetch(url, {
     headers: { 'User-Agent': 'Mozilla/5.0 (QiuzhaoCompanion auto-sync)' },
-    // 不缓存，确保拿到最新
     cache: 'no-store',
   });
   if (!res.ok) throw new Error(`offerio 返回 HTTP ${res.status}`);
@@ -65,7 +64,7 @@ async function getMeta() {
   return prisma.syncMeta.findUnique({ where: { id: SINGLETON } });
 }
 
-async function setMeta(data: Partial<{ signature: string; lastSyncAt: Date; status: string; lastError: string }>) {
+async function setMeta(data: Partial<{ signature: string; lastSyncAt: Date; status: string; lastError: string; cursor: number }>) {
   return prisma.syncMeta.upsert({
     where: { id: SINGLETON },
     update: data,
@@ -82,22 +81,7 @@ export async function isChanged(): Promise<boolean> {
   return meta.signature !== sig;
 }
 
-export type SyncResult = { created: number; updated: number; total: number; signature: string };
-
-// 并发拉取剩余所有页（控制并发，避免打爆源站）
-async function fetchRemainingPages(p1: Page): Promise<OfferioCompany[]> {
-  const totalPages = p1.totalPages || 1;
-  const pageSize = p1.pageSize || PAGE_SIZE;
-  const all: OfferioCompany[] = [...p1.companies];
-  const pages = Array.from({ length: Math.max(0, totalPages - 1) }, (_, i) => i + 2);
-  const CONC = 5;
-  for (let i = 0; i < pages.length; i += CONC) {
-    const batch = pages.slice(i, i + CONC);
-    const results = await Promise.all(batch.map((p) => fetchPage(p, pageSize)));
-    for (const pg of results) all.push(...pg.companies);
-  }
-  return all;
-}
+export type SyncResult = { created: number; updated: number; total: number; signature: string; cursor: number; done: boolean };
 
 // 原生批量 upsert：一条 SQL 写入一整批，避免逐条 upsert 长时间占用连接
 async function bulkUpsert(companies: OfferioCompany[], existingSet: Set<string>) {
@@ -128,15 +112,46 @@ async function bulkUpsert(companies: OfferioCompany[], existingSet: Set<string>)
   return { created, updated };
 }
 
-// 全量同步（增量 upsert，保留个人投递/收藏/证据）
+// 单轮同步：
+//  - 尚未全量跑完（cursor 未达末尾）→ 本轮继续拉后续页面
+//  - 已全量跑完 → 只做增量：拉前 PAGE_LIMIT 页（最近更新）
+const PAGE_LIMIT = 10; // 单轮最多拉 10 页（约 1000 家），保证 Vercel 60s 内完成
+
 export async function runSyncOnce(): Promise<SyncResult> {
-  await setMeta({ status: 'syncing' });
-  console.log('[sync] 开始全量拉取 offerio...');
+  const meta = await getMeta();
+  const hasEverSynced = !!meta?.signature;
 
   const p1 = await fetchPage(1);
-  const all = await fetchRemainingPages(p1);
+  const totalPages = p1.totalPages || 1;
 
-  // 按 offerio id 去重（极端情况下接口可能返回重复）
+  // 决定本轮拉取范围
+  let fromPage: number;
+  let toPage: number;
+  if (!hasEverSynced || (meta?.cursor ?? 1) < totalPages) {
+    // 全量补齐模式：从上次游标继续，每轮 PAGE_LIMIT 页
+    const cursor = meta?.cursor ?? 1;
+    fromPage = cursor;
+    toPage = Math.min(cursor + PAGE_LIMIT - 1, totalPages);
+  } else {
+    // 已全量完成 → 增量模式：只拉最前面 PAGE_LIMIT 页
+    fromPage = 1;
+    toPage = Math.min(PAGE_LIMIT, totalPages);
+  }
+
+  console.log(`[sync] 本轮拉取 page ${fromPage}..${toPage} / ${totalPages}`);
+  await setMeta({ status: 'syncing', cursor: fromPage });
+
+  const all: OfferioCompany[] = [];
+  const pages: number[] = [];
+  for (let p = fromPage; p <= toPage; p++) pages.push(p);
+  const CONC = 4;
+  for (let i = 0; i < pages.length; i += CONC) {
+    const batch = pages.slice(i, i + CONC);
+    const results = await Promise.all(batch.map((p) => fetchPage(p)));
+    for (const pg of results) all.push(...pg.companies);
+  }
+
+  // 按 offerio id 去重
   const map = new Map<string, OfferioCompany>();
   for (const c of all) if (c.id) map.set(c.id, c);
   const list = [...map.values()];
@@ -149,10 +164,19 @@ export async function runSyncOnce(): Promise<SyncResult> {
 
   const { created, updated } = await bulkUpsert(list, existingSet);
 
-  const signature = computeSignature(p1);
-  await setMeta({ signature, status: 'ok', lastSyncAt: new Date() });
-  console.log(`[sync] 完成：offerio 共 ${list.length} 家，本次新增 ${created} / 更新 ${updated}`);
-  return { created, updated, total: list.length, signature };
+  const done = toPage >= totalPages;
+  const signature = done ? computeSignature(p1) : meta?.signature ?? null;
+  const finalCursor = done ? totalPages : toPage + 1;
+
+  await setMeta({
+    signature: signature ?? undefined,
+    cursor: finalCursor,
+    status: 'ok',
+    lastSyncAt: new Date(),
+  });
+
+  console.log(`[sync] 完成：拉取 ${list.length} 家，新增 ${created} / 更新 ${updated}，done=${done}`);
+  return { created, updated, total: list.length, signature: signature ?? '', cursor: finalCursor, done };
 }
 
 // 后台批量预评分：对尚未评分（matchScore 为 null）的公司跑 AI 预评分并写库。
@@ -211,7 +235,7 @@ export function startAutoSync(intervalMs = 15 * 60 * 1000) {
       const changed = await isChanged();
       if (changed) {
         const r = await runSyncOnce();
-        console.log(`[sync] 检测到更新并完成同步：新增 ${r.created} / 更新 ${r.updated}`);
+        console.log(`[sync] 检测到更新并完成同步：新增 ${r.created} / 更新 ${r.updated}，done=${r.done}`);
       }
       // 同步后顺带消化待评分队列（AI 未配置时自动跳过）
       await prescorePending(20).catch((e) => {
