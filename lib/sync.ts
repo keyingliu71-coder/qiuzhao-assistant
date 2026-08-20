@@ -73,7 +73,7 @@ async function setMeta(data: Partial<{ signature: string; lastSyncAt: Date; stat
 }
 
 // 廉价判断：只拉第 1 页，对比指纹。内容无变化则不需全量拉取
-async function isChanged(): Promise<boolean> {
+export async function isChanged(): Promise<boolean> {
   const p1 = await fetchPage(1);
   const sig = computeSignature(p1);
   const meta = await getMeta();
@@ -83,19 +83,28 @@ async function isChanged(): Promise<boolean> {
 
 export type SyncResult = { created: number; updated: number; total: number; signature: string };
 
+// 并发拉取剩余所有页（控制并发，避免打爆源站）
+async function fetchRemainingPages(p1: Page): Promise<OfferioCompany[]> {
+  const totalPages = p1.totalPages || 1;
+  const pageSize = p1.pageSize || PAGE_SIZE;
+  const all: OfferioCompany[] = [...p1.companies];
+  const pages = Array.from({ length: Math.max(0, totalPages - 1) }, (_, i) => i + 2);
+  const CONC = 5;
+  for (let i = 0; i < pages.length; i += CONC) {
+    const batch = pages.slice(i, i + CONC);
+    const results = await Promise.all(batch.map((p) => fetchPage(p, pageSize)));
+    for (const pg of results) all.push(...pg.companies);
+  }
+  return all;
+}
+
 // 全量同步（增量 upsert，保留个人投递/收藏/证据）
 export async function runSyncOnce(): Promise<SyncResult> {
   await setMeta({ status: 'syncing' });
   console.log('[sync] 开始全量拉取 offerio...');
 
   const p1 = await fetchPage(1);
-  const totalPages = p1.totalPages || 1;
-  const pageSize = p1.pageSize || PAGE_SIZE;
-  const all: OfferioCompany[] = [...p1.companies];
-  for (let p = 2; p <= totalPages; p++) {
-    const pg = await fetchPage(p, pageSize);
-    all.push(...pg.companies);
-  }
+  const all = await fetchRemainingPages(p1);
 
   // 按 offerio id 去重（极端情况下接口可能返回重复）
   const map = new Map<string, OfferioCompany>();
@@ -111,20 +120,25 @@ export async function runSyncOnce(): Promise<SyncResult> {
   let created = 0;
   let updated = 0;
   const CHUNK = 200;
-  for (let i = 0; i < list.length; i += CHUNK) {
-    const slice = list.slice(i, i + CHUNK);
-    const ops = slice.map((c) => {
-      const isNew = !existingSet.has(c.id);
-      if (isNew) created++;
-      else updated++;
-      const data = normalize(c);
-      return prisma.company.upsert({
-        where: { sourceId: c.id },
-        update: data,
-        create: { sourceId: c.id, ...data },
+  const CONC_TX = 4;
+  const chunks: OfferioCompany[][] = [];
+  for (let i = 0; i < list.length; i += CHUNK) chunks.push(list.slice(i, i + CHUNK));
+  for (let i = 0; i < chunks.length; i += CONC_TX) {
+    const batch = chunks.slice(i, i + CONC_TX);
+    await Promise.all(batch.map(async (slice) => {
+      const ops = slice.map((c) => {
+        const isNew = !existingSet.has(c.id);
+        if (isNew) created++;
+        else updated++;
+        const data = normalize(c);
+        return prisma.company.upsert({
+          where: { sourceId: c.id },
+          update: data,
+          create: { sourceId: c.id, ...data },
+        });
       });
-    });
-    await prisma.$transaction(ops);
+      await prisma.$transaction(ops);
+    }));
   }
 
   const signature = computeSignature(p1);
