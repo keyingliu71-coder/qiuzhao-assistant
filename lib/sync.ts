@@ -120,7 +120,7 @@ export async function runSyncOnce(): Promise<SyncResult> {
   let created = 0;
   let updated = 0;
   const CHUNK = 200;
-  const CONC_TX = 4;
+  const CONC_TX = 2;
   const chunks: OfferioCompany[][] = [];
   for (let i = 0; i < list.length; i += CHUNK) chunks.push(list.slice(i, i + CHUNK));
   for (let i = 0; i < chunks.length; i += CONC_TX) {
