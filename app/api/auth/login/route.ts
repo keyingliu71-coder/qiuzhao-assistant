@@ -1,3 +1,4 @@
+import { NextResponse } from "next/server";
 import { AUTH_COOKIE, makeSession, verifyLogin } from "@/lib/auth";
 
 export async function POST(req: Request) {
@@ -12,16 +13,10 @@ export async function POST(req: Request) {
   const password = String(body?.password ?? "");
 
   if (!verifyLogin(username, password)) {
-    return new Response(JSON.stringify({ ok: false, error: "账号或密码不正确" }), {
-      status: 401,
-      headers: { "Content-Type": "application/json" },
-    });
+    return NextResponse.json({ ok: false, error: "账号或密码不正确" }, { status: 401 });
   }
 
-  const res = new Response(JSON.stringify({ ok: true }), {
-    status: 200,
-    headers: { "Content-Type": "application/json" },
-  });
+  const res = NextResponse.json({ ok: true });
   res.cookies.set(AUTH_COOKIE, makeSession(username), {
     httpOnly: true,
     sameSite: "lax",
@@ -33,8 +28,5 @@ export async function POST(req: Request) {
 }
 
 export async function GET() {
-  return new Response(JSON.stringify({ ok: false, error: "method not allowed" }), {
-    status: 405,
-    headers: { "Content-Type": "application/json" },
-  });
+  return NextResponse.json({ ok: false, error: "method not allowed" }, { status: 405 });
 }
