@@ -145,6 +145,7 @@ model Favorite {
 model SyncMeta {
   id          String   @id @default("singleton")
   signature   String?  // offerio 内容指纹（total + 首条 id + 首条 updateDate）
+  cursor      Int?     // 全量补齐游标（已同步到第几页）
   lastSyncAt  DateTime?
   status      String   @default("idle") // idle / syncing / ok / error
   lastError   String?

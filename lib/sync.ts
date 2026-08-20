@@ -160,7 +160,7 @@ export async function runSyncOnce(): Promise<SyncResult> {
     where: { sourceId: { not: null } },
     select: { sourceId: true },
   });
-  const existingSet = new Set(existing.map((e) => e.sourceId));
+  const existingSet = new Set<string>(existing.map((e) => e.sourceId).filter((v): v is string => !!v));
 
   const { created, updated } = await bulkUpsert(list, existingSet);
 
