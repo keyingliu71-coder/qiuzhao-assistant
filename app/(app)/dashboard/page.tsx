@@ -4,7 +4,6 @@ import { scoreCls } from "@/lib/match";
 import { getScore } from "@/lib/score";
 import { STAGE_NAMES } from "@/lib/constants";
 import AddToBoardButton from "../components/AddToBoardButton";
-import DeliveryVizModal from "../components/DeliveryVizModal";
 import ApplicationViz from "../components/ApplicationViz";
 import InspectionBlock from "../components/InspectionBlock";
 
@@ -205,7 +204,6 @@ export default async function DashboardPage() {
           📊 投递进度可视化{" "}
           <span className="more">
             今日投递 {todayCompanies} 家 · 累计 {delivered.length} 岗 / {deliveredCompanies} 家
-            <DeliveryVizModal apps={vizData} />
           </span>
         </h3>
         <ApplicationViz apps={vizData} hideList />
