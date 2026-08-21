@@ -15,7 +15,7 @@ import {
   setSatisfaction,
   setSubState,
   aiEvaluateMatch,
-} from "@/app/(app)/actions";
+  delApplication,} from "@/app/(app)/actions";
 
 type Todo = { id: string; text: string; done: boolean };
 type Ev = {
@@ -163,6 +163,15 @@ export default function BoardClient({
     updateApp(cur.id, (a) => ({ ...a, subState: v, subTone: tone }));
     showToast("已更新子状态");
   }
+  async function doDelApp(id: string) {
+    if (!confirm("确定删除这张投递卡片吗？关联的待办与进度历史会一并删除，且不可恢复。")) return;
+    const r = await delApplication(id);
+    if (r.ok) {
+      setOpenId(null);
+      setApps((arr) => arr.filter((a) => a.id !== id));
+      showToast("已删除投递卡片");
+    }
+  }
 
   return (
     <div className="page">
@@ -260,7 +269,7 @@ export default function BoardClient({
                     }}
                   >
                     <div className="c-co">{a.companyName}</div>
-                    <div className="c-title">{a.jobTitle}</div>
+<div className="c-title">{a.jobTitle}<button className="card-del" title="删除此卡片" onClick={(e)=>{e.stopPropagation(); doDelApp(a.id);}}>🗑</button></div>
                     <div className="c-sub">
                       {a.location || "—"}
                       {a.stage > 0 ? " · 已投递" : ""}

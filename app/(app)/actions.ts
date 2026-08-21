@@ -71,6 +71,17 @@ export async function updateStage(appId: string, stage: number) {
   revalidatePath("/ai");
 }
 
+// 删除投递卡片（含关联待办、事件）
+export async function delApplication(appId: string) {
+  if (!appId) return { ok: false };
+  await prisma.todo.deleteMany({ where: { applicationId: appId } });
+  await prisma.applicationEvent.deleteMany({ where: { applicationId: appId } });
+  await prisma.application.delete({ where: { id: appId } });
+  revalidatePath("/board");
+  revalidatePath("/dashboard");
+  return { ok: true };
+}
+
 // 待办 CRUD（返回数据供前端即时刷新）
 export async function addTodo(appId: string, text: string) {
   const t = (text || "").trim();

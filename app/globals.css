@@ -152,7 +152,7 @@ tr:hover td{background:#faf8f4;}
 .card{background:var(--paper); border:1px solid var(--line); border-radius:10px; padding:10px; margin-bottom:9px; cursor:grab; box-shadow:0 1px 3px rgba(110,100,80,.07); transition:all .15s;}
 .card:hover{border-color:var(--sage); transform:translateY(-1px);}
 .card.dragging{opacity:.45; cursor:grabbing;}
-.card .c-title{font-weight:600; font-size:13px; color:var(--ink);}
+.card .c-title{font-weight:600; font-size:13px; color:var(--ink); position:relative; padding-right:22px;}
 .card .c-sub{color:var(--sub); font-size:12px; margin:2px 0 7px;}
 .card .c-row{display:flex; align-items:center; gap:6px; font-size:11.5px; color:var(--sub); flex-wrap:wrap;}
 .card .c-todo{font-size:11.5px; color:var(--dusty); margin-top:7px; background:var(--dusty-bg); border-radius:6px; padding:4px 8px;}
@@ -317,3 +317,6 @@ tr.clickable{cursor:pointer;}
 .logout-btn:hover {
   background: rgba(0, 0, 0, 0.03);
 }
+
+.card .card-del{position:absolute; top:-2px; right:0; border:none; background:transparent; cursor:pointer; opacity:.45; font-size:12px; line-height:1; padding:2px;}
+.card .card-del:hover{opacity:1; color:var(--rose);}
