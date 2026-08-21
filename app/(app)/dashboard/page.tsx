@@ -1,4 +1,4 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { scoreCls } from "@/lib/match";
 import { getScore } from "@/lib/score";
@@ -173,7 +173,7 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      {      <div className="panel" style={{ marginBottom: 16 }}>
+            <div className="panel" style={{ marginBottom: 16 }}>
         <h3>
           🤖 AI 工作台 <Link href="/ai" className="more">进入 →</Link>
         </h3>
