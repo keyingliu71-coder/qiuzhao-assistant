@@ -1,10 +1,10 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { scoreCls } from "@/lib/match";
 import { getScore } from "@/lib/score";
 import { STAGE_NAMES } from "@/lib/constants";
 import AddToBoardButton from "../components/AddToBoardButton";
-import ApplicationViz from "../components/ApplicationViz";
+import DeliveryVizModal from "../components/DeliveryVizModal";
 import InspectionBlock from "../components/InspectionBlock";
 
 export const dynamic = "force-dynamic";
@@ -148,7 +148,10 @@ export default async function DashboardPage() {
           </div>
         </div>
         <div className="stat-card">
-          <div className="s-label">今日投递</div>
+          <div className="s-label">
+            今日投递
+            <DeliveryVizModal apps={vizData} />
+          </div>
           <div className="s-num">
             {todayCompanies} <span style={{ fontSize: 13, color: "var(--sub)", fontWeight: 400 }}>家</span>
           </div>
@@ -170,18 +173,7 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      {/* 投递进度可视化（可交互：悬停 / 点击筛选 / 打开官网） */}
-      <div className="panel" style={{ marginBottom: 16 }}>
-        <h3>
-          📊 投递进度可视化{" "}
-          <span className="more">
-            今日投递 {todayCompanies} 家 · 累计 {delivered.length} 岗 / {deliveredCompanies} 家
-          </span>
-        </h3>
-        <ApplicationViz apps={vizData} />
-      </div>
-
-      <div className="panel" style={{ marginBottom: 16 }}>
+      {      <div className="panel" style={{ marginBottom: 16 }}>
         <h3>
           🤖 AI 工作台 <Link href="/ai" className="more">进入 →</Link>
         </h3>

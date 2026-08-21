@@ -1,6 +1,6 @@
-"use client";
+﻿"use client";
 
-import { useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { matchJob, scoreCls, parseJobs } from "@/lib/match";
 import { toggleFavorite } from "@/app/(app)/actions";
@@ -22,55 +22,57 @@ type CompanyLite = {
   favorited?: boolean;
 };
 
-function buildHref(p: {
-  q: string;
-  nature: string;
-  batch: string;
-  page: number;
-}) {
-  const sp = new URLSearchParams();
-  if (p.q) sp.set("q", p.q);
-  if (p.nature) sp.set("nature", p.nature);
-  if (p.batch) sp.set("batch", p.batch);
-  if (p.page > 1) sp.set("page", String(p.page));
-  const s = sp.toString();
-  return s ? `/companies?${s}` : "/companies";
-}
+const PAGE = 20;
 
 export default function CompaniesClient({
-  companies,
+  companies: all,
   batches,
   natures,
-  total,
   totalAll,
-  page,
-  pages,
-  q,
-  nature,
-  batch,
   openCompany,
 }: {
   companies: CompanyLite[];
   batches: string[];
   natures: string[];
-  total: number;
   totalAll: number;
-  page: number;
-  pages: number;
-  q: string;
-  nature: string;
-  batch: string;
   openCompany: CompanyLite | null;
 }) {
   const [modalOpen, setModalOpen] = useState<boolean>(!!openCompany);
   const [cur, setCur] = useState<CompanyLite | null>(openCompany);
   const [selJob, setSelJob] = useState(0);
-  const formRef = useRef<HTMLFormElement>(null);
 
-  // 收藏状态（公司招聘库「★ 收藏」↔ 资料库「收藏」分区）
+  // 客户端搜索 / 筛选 / 分页状态
+  const [q, setQ] = useState("");
+  const [nature, setNature] = useState("");
+  const [batch, setBatch] = useState("");
+  const [page, setPage] = useState(1);
+
+  // 搜索 + 筛选（内存过滤，即时响应，无整页刷新）
+  const filtered = useMemo(() => {
+    const kw = q.trim().toLowerCase();
+    let list = all;
+    if (kw)
+      list = list.filter(
+        (c) =>
+          (c.name || "").toLowerCase().includes(kw) ||
+          (c.industry || "").toLowerCase().includes(kw) ||
+          (c.location || "").toLowerCase().includes(kw) ||
+          (c.batch || "").toLowerCase().includes(kw)
+      );
+    if (nature) list = list.filter((c) => c.nature === nature);
+    if (batch) list = list.filter((c) => c.batch === batch);
+    return list;
+  }, [all, q, nature, batch]);
+
+  const pages = Math.max(1, Math.ceil(filtered.length / PAGE));
+  const safePage = Math.min(page, pages);
+  const companies = filtered.slice((safePage - 1) * PAGE, safePage * PAGE);
+  const total = filtered.length;
+
+  // 收藏状态
   const [fav, setFav] = useState<Record<string, boolean>>(() => {
     const m: Record<string, boolean> = {};
-    companies.forEach((c) => { if (c.favorited) m[c.id] = true; });
+    all.forEach((c) => { if (c.favorited) m[c.id] = true; });
     if (openCompany?.favorited) m[openCompany.id] = true;
     return m;
   });
@@ -221,6 +223,10 @@ export default function CompaniesClient({
     );
   }
 
+  function goto(p: number) {
+    setPage(Math.max(1, Math.min(p, pages)));
+  }
+
   return (
     <div className="page">
       <div className="toolbar">
@@ -231,35 +237,21 @@ export default function CompaniesClient({
         <span className="realdata-tag">● offerio 实时同步</span>
       </div>
       <div className="pagedesc">
-        点任意公司「查看岗位」弹出小窗：左侧岗位列表，右侧 JD 详情 + 匹配分析 + 官方投递入口。
+        点任意公司「查看岗位」弹出小窗：左侧岗位列表，右侧 JD 详情 + 匹配分析 + 官方投递入口。支持即时搜索与本地翻页（共 {totalAll} 家）。
       </div>
 
       <div className="ctable-wrap">
-        <form
-          ref={formRef}
-          action="/companies"
-          method="get"
-          className="ctable-tools"
-        >
+        <div className="ctable-tools">
           <input
-            name="q"
             className="search-input"
             placeholder="🔍 搜索公司名 / 行业 / 地点，如：腾讯、互联网、北京"
-            defaultValue={q}
+            value={q}
+            onChange={(e) => { setQ(e.target.value); setPage(1); }}
           />
-          <input type="hidden" name="nature" value={nature} />
-          <input type="hidden" name="batch" value={batch} />
           <select
             className="sel"
-            name="batch"
-            defaultValue={batch}
-            onChange={(e) => {
-              const f = formRef.current!;
-              (f.querySelector('input[name="nature"]') as HTMLInputElement).value =
-                nature;
-              (f.querySelector('input[name="q"]') as HTMLInputElement).value = q;
-              f.requestSubmit();
-            }}
+            value={batch}
+            onChange={(e) => { setBatch(e.target.value); setPage(1); }}
           >
             <option value="">全部招聘批次</option>
             {batches.map((b) => (
@@ -270,15 +262,8 @@ export default function CompaniesClient({
           </select>
           <select
             className="sel"
-            name="nature"
-            defaultValue={nature}
-            onChange={(e) => {
-              const f = formRef.current!;
-              (f.querySelector('input[name="batch"]') as HTMLInputElement).value =
-                batch;
-              (f.querySelector('input[name="q"]') as HTMLInputElement).value = q;
-              f.requestSubmit();
-            }}
+            value={nature}
+            onChange={(e) => { setNature(e.target.value); setPage(1); }}
           >
             <option value="">全部企业性质</option>
             {natures.map((n) => (
@@ -291,7 +276,7 @@ export default function CompaniesClient({
             共 <b>{total}</b> 家公司
             {total !== totalAll ? `（已从 ${totalAll} 家筛选）` : ""}
           </span>
-        </form>
+        </div>
 
         <table>
           <thead>
@@ -384,47 +369,48 @@ export default function CompaniesClient({
         </table>
 
         <div className="pager">
-          <Link
-            href={buildHref({ q, nature, batch, page: 1 })}
+          <span
             className="pg-btn"
-            style={{ opacity: page <= 1 ? 0.4 : 1, pointerEvents: page <= 1 ? "none" : "auto" }}
+            onClick={() => goto(1)}
+            style={{ opacity: safePage <= 1 ? 0.4 : 1, pointerEvents: safePage <= 1 ? "none" : "auto", cursor: "pointer" }}
           >
             « 首页
-          </Link>
-          <Link
-            href={buildHref({ q, nature, batch, page: page - 1 })}
+          </span>
+          <span
             className="pg-btn"
-            style={{ opacity: page <= 1 ? 0.4 : 1, pointerEvents: page <= 1 ? "none" : "auto" }}
+            onClick={() => goto(safePage - 1)}
+            style={{ opacity: safePage <= 1 ? 0.4 : 1, pointerEvents: safePage <= 1 ? "none" : "auto", cursor: "pointer" }}
           >
             ‹ 上一页
-          </Link>
+          </span>
           {Array.from({ length: pages }, (_, i) => i + 1)
-            .filter((p) => Math.abs(p - page) <= 3)
+            .filter((p) => Math.abs(p - safePage) <= 3)
             .map((p) => (
-              <Link
+              <span
                 key={p}
-                href={buildHref({ q, nature, batch, page: p })}
-                className={"pg-btn" + (p === page ? " cur" : "")}
+                onClick={() => goto(p)}
+                className={"pg-btn" + (p === safePage ? " cur" : "")}
+                style={{ cursor: "pointer" }}
               >
                 {p}
-              </Link>
+              </span>
             ))}
-          <Link
-            href={buildHref({ q, nature, batch, page: page + 1 })}
+          <span
             className="pg-btn"
-            style={{ opacity: page >= pages ? 0.4 : 1, pointerEvents: page >= pages ? "none" : "auto" }}
+            onClick={() => goto(safePage + 1)}
+            style={{ opacity: safePage >= pages ? 0.4 : 1, pointerEvents: safePage >= pages ? "none" : "auto", cursor: "pointer" }}
           >
             下一页 ›
-          </Link>
-          <Link
-            href={buildHref({ q, nature, batch, page: pages })}
+          </span>
+          <span
             className="pg-btn"
-            style={{ opacity: page >= pages ? 0.4 : 1, pointerEvents: page >= pages ? "none" : "auto" }}
+            onClick={() => goto(pages)}
+            style={{ opacity: safePage >= pages ? 0.4 : 1, pointerEvents: safePage >= pages ? "none" : "auto", cursor: "pointer" }}
           >
             末页 »
-          </Link>
+          </span>
           <span className="pg-info">
-            第 {page} / {pages} 页 · 每页 {20} 条 · 共 {total} 家
+            第 {safePage} / {pages} 页 · 每页 {PAGE} 条 · 共 {total} 家
           </span>
         </div>
       </div>

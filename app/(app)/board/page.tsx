@@ -1,7 +1,6 @@
-import { prisma } from "@/lib/prisma";
+﻿import { prisma } from "@/lib/prisma";
 import { STAGE_NAMES } from "@/lib/constants";
 import BoardClient from "./BoardClient";
-import ApplicationViz from "../components/ApplicationViz";
 
 export const dynamic = "force-dynamic";
 
@@ -44,17 +43,6 @@ export default async function BoardPage() {
     })),
   }));
 
-  const vizData = apps.map((a) => ({
-    id: a.id,
-    companyName: a.company?.name ?? "",
-    jobTitle: a.jobTitle,
-    stage: a.stage,
-    subState: a.subState,
-    subTone: a.subTone,
-    createdAt: a.createdAt.toISOString(),
-    sourceUrl: a.sourceUrl,
-  }));
-
   return (
     <>
       <div className="page" style={{ marginBottom: 14 }}>
@@ -64,13 +52,6 @@ export default async function BoardPage() {
           </h1>
           <span style={{ flex: 1 }}></span>
           <span className="realdata-tag">● 真实数据</span>
-        </div>
-        <div className="panel">
-          <h3>
-            📊 投递进度可视化
-            <span className="more">悬停看详情 · 点击筛选 · 点明细打开官网</span>
-          </h3>
-          <ApplicationViz apps={vizData} />
         </div>
       </div>
       <BoardClient

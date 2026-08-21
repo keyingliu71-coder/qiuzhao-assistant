@@ -1,8 +1,8 @@
-"use client";
+﻿"use client";
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { STAGE_NAMES } from "@/lib/constants";
+import { STAGE_NAMES, SUB_STATE_OPTIONS } from "@/lib/constants";
 import { matchJob, scoreCls } from "@/lib/match";
 import {
   updateStage,
@@ -12,6 +12,7 @@ import {
   delTodo,
   setPriority,
   setSatisfaction,
+  setSubState,
   aiEvaluateMatch,
 } from "@/app/(app)/actions";
 
@@ -83,6 +84,7 @@ export default function BoardClient({
   evidence: EvRow[];
 }) {
   const [apps, setApps] = useState<App[]>(initial);
+  const [query, setQuery] = useState("");
   const [view, setView] = useState<"kanban" | "list">("kanban");
   const [openId, setOpenId] = useState<string | null>(null);
   const [tab, setTab] = useState("overview");
@@ -91,6 +93,12 @@ export default function BoardClient({
   const [, start] = useTransition();
 
   const cur = apps.find((a) => a.id === openId) || null;
+
+  // 搜索：按 公司名 + 岗位名 过滤
+  const kw = query.trim().toLowerCase();
+  const shown = kw
+    ? apps.filter((a) => (a.companyName + " " + a.jobTitle).toLowerCase().includes(kw))
+    : apps;
 
   function showToast(m: string) {
     setToast(m);
@@ -147,6 +155,13 @@ export default function BoardClient({
     await setSatisfaction(cur.id, v);
     updateApp(cur.id, (a) => ({ ...a, satisfaction: v }));
   }
+  async function doSub(v: string) {
+    if (!cur) return;
+    const tone = v.includes("拒") || v.includes("结束") ? "gray" : v.includes("Offer") ? "sage" : "dusty";
+    await setSubState(cur.id, v, tone);
+    updateApp(cur.id, (a) => ({ ...a, subState: v, subTone: tone }));
+    showToast("已更新子状态");
+  }
 
   return (
     <div className="page">
@@ -165,8 +180,20 @@ export default function BoardClient({
         </div>
       </div>
       <div className="pagedesc">
-        拖动卡片更新进度（前推生效、回退确认）；点卡片打开岗位工作台，可改待办 / 新建待办。
+        拖动卡片更新进度（前推生效、回退确认）；点卡片打开岗位工作台，可改待办 / 子状态 / 新建待办。
       </div>
+
+      {/* 看板搜索 */}
+      <div className="ctable-tools" style={{ marginBottom: 12 }}>
+        <input
+          className="search-input"
+          placeholder="🔍 搜索公司 / 岗位（如：小米、AI产品经理）"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+        <span className="c-count">匹配 {shown.length} 条投递</span>
+      </div>
+
       <div className="legend">
         <span>
           <span className="dot d-terra"></span>优先级高
@@ -186,7 +213,7 @@ export default function BoardClient({
       {view === "kanban" ? (
         <div className="kanban">
           {STAGE_NAMES.map((name, stage) => {
-            const col = apps.filter((a) => a.stage === stage);
+            const col = shown.filter((a) => a.stage === stage);
             return (
               <div
                 key={stage}
@@ -244,7 +271,7 @@ export default function BoardClient({
               </tr>
             </thead>
             <tbody>
-              {apps.map((a) => (
+              {shown.map((a) => (
                 <tr
                   key={a.id}
                   className="clickable"
@@ -317,7 +344,7 @@ export default function BoardClient({
               ))}
             </div>
             <div className="drawer-body">
-              {tab === "overview" && <OverviewTab app={cur} onAdd={doAdd} onToggle={doToggle} onEdit={doEdit} onDel={doDel} onPriority={doPriority} onSat={doSat} />}
+              {tab === "overview" && <OverviewTab app={cur} onAdd={doAdd} onToggle={doToggle} onEdit={doEdit} onDel={doDel} onPriority={doPriority} onSat={doSat} onSub={doSub} />}
               {tab === "jd" && <JdTab app={cur} />}
               {tab === "cv" && <CvTab app={cur} />}
               {tab === "track" && <TrackTab app={cur} />}
@@ -348,6 +375,7 @@ function OverviewTab({
   onDel,
   onPriority,
   onSat,
+  onSub,
 }: {
   app: App;
   onAdd: (id: string, t: string) => void;
@@ -356,16 +384,33 @@ function OverviewTab({
   onDel: (id: string, t: Todo) => void;
   onPriority: (v: string) => void;
   onSat: (v: string) => void;
+  onSub: (v: string) => void;
 }) {
   const [newT, setNewT] = useState("");
   const [editId, setEditId] = useState<string | null>(null);
   const [editV, setEditV] = useState("");
+  const subOpts = SUB_STATE_OPTIONS[app.stage] || [];
 
   return (
     <>
       <h3 style={{ fontSize: 14, marginBottom: 10 }}>岗位概览</h3>
       <div className="version-chain" style={{ marginBottom: 14 }}>
         <span className="vnode cur">当前：{app.stageName}</span>
+        <span className="vnode">
+          子状态
+          <select
+            className="mini-sel"
+            value={app.subState || ""}
+            onChange={(e) => e.target.value && onSub(e.target.value)}
+          >
+            <option value="">(未细分)</option>
+            {subOpts.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+        </span>
         <span className="vnode">
           满意度
           <select className="mini-sel" value={app.satisfaction || ""} onChange={(e) => onSat(e.target.value)}>

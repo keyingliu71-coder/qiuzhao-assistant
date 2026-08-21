@@ -1,11 +1,9 @@
-import { prisma } from "@/lib/prisma";
+﻿import { prisma } from "@/lib/prisma";
 import CompaniesClient from "./CompaniesClient";
 
 export const dynamic = "force-dynamic";
 
-const PAGE = 20;
-
-type SP = { q?: string; nature?: string; batch?: string; open?: string; page?: string };
+type SP = { q?: string; nature?: string; batch?: string; open?: string };
 
 export default async function CompaniesPage({
   searchParams,
@@ -17,39 +15,18 @@ export default async function CompaniesPage({
   const nature = (sp.nature || "").trim();
   const batch = (sp.batch || "").trim();
   const openId = (sp.open || "").trim();
-  const page = Math.max(1, parseInt(sp.page || "1", 10) || 1);
 
-  const [batches, natures] = await Promise.all([
+  // 全量一次拉取，搜索/筛选/分页交给客户端内存完成：
+  //  - 修复 offset 翻页因 updateDate 相同导致的重复/跳漏
+  //  - 搜索、翻页不再整页 GET（避免 Vercel 冷启动超时丢界面）
+  const [batches, natures, companies, totalAll, demoUser] = await Promise.all([
     prisma.company.findMany({ distinct: ["batch"], select: { batch: true }, where: { batch: { not: null } } }),
     prisma.company.findMany({ distinct: ["nature"], select: { nature: true }, where: { nature: { not: null } } }),
+    prisma.company.findMany({ orderBy: [{ updateDate: "desc" }, { name: "asc" }] }),
+    prisma.company.count(),
+    prisma.user.findFirst(),
   ]);
 
-  const where: any = {};
-  if (nature) where.nature = nature;
-  if (batch) where.batch = batch;
-  if (q)
-    where.OR = [
-      { name: { contains: q } },
-      { industry: { contains: q } },
-      { location: { contains: q } },
-      { batch: { contains: q } },
-    ];
-
-  const total = await prisma.company.count({ where });
-  const companies = await prisma.company.findMany({
-    where,
-    orderBy: { updateDate: "desc" },
-    skip: (page - 1) * PAGE,
-    take: PAGE,
-  });
-  const pages = Math.max(1, Math.ceil(total / PAGE));
-
-  const openCompany = openId
-    ? await prisma.company.findUnique({ where: { id: openId } })
-    : null;
-
-  // 当前用户收藏的公司 id 集合（驱动「★ 收藏」按钮状态）
-  const demoUser = await prisma.user.findFirst();
   const favIds = new Set(
     demoUser
       ? (await prisma.favorite.findMany({ where: { userId: demoUser.id }, select: { companyId: true } })).map(
@@ -57,6 +34,10 @@ export default async function CompaniesPage({
         )
       : []
   );
+
+  const openCompany = openId
+    ? companies.find((c) => c.id === openId) ?? null
+    : null;
 
   return (
     <CompaniesClient
@@ -77,13 +58,7 @@ export default async function CompaniesPage({
       }))}
       batches={batches.map((b) => b.batch as string).filter(Boolean)}
       natures={natures.map((n) => n.nature as string).filter(Boolean)}
-      total={total}
-      totalAll={await prisma.company.count()}
-      page={page}
-      pages={pages}
-      q={q}
-      nature={nature}
-      batch={batch}
+      totalAll={totalAll}
       openCompany={
         openCompany
           ? {
