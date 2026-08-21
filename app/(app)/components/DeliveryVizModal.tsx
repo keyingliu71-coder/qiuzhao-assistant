@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState } from "react";
 import ApplicationViz, { VizApp } from "./ApplicationViz";
@@ -8,15 +8,13 @@ export default function DeliveryVizModal({ apps }: { apps: VizApp[] }) {
   const [open, setOpen] = useState(false);
   return (
     <>
-      <span
-        className="viz-trigger"
-        role="button"
-        title="查看完整投递可视化"
+      <button
+        className="viz-trigger-btn"
+        title="查看全部投递可视化"
         onClick={() => setOpen(true)}
-        style={{ cursor: "pointer", fontSize: 14, marginLeft: 8, userSelect: "none", opacity: 0.85 }}
       >
-        📊
-      </span>
+        📊 全部投递
+      </button>
       {open && (
         <div
           className={"modal-mask open"}

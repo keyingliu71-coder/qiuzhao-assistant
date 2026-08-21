@@ -147,15 +147,13 @@ export default async function DashboardPage() {
             来自 {newShow.length} 家公司 · 高匹配 {highMatch} 个
           </div>
         </div>
-        <div className="stat-card">
-          <div className="s-label">
-            今日投递
-            <DeliveryVizModal apps={vizData} />
-          </div>
+        <div className="stat-card viz-card" style={{ position: "relative" }}>
+          <div className="s-label">今日投递</div>
           <div className="s-num">
             {todayCompanies} <span style={{ fontSize: 13, color: "var(--sub)", fontWeight: 400 }}>家</span>
           </div>
           <div className="s-sub">累计投递 {delivered.length} 岗 / {deliveredCompanies} 家</div>
+          <DeliveryVizModal apps={vizData} />
         </div>
         <div className="stat-card">
           <div className="s-label">有进展（初筛/流程中）</div>
