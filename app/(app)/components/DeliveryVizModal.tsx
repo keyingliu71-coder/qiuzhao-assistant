@@ -3,7 +3,7 @@
 import { useState } from "react";
 import ApplicationViz, { VizApp } from "./ApplicationViz";
 
-// 驾驶舱「今日投递」卡片的可视化弹窗：默认不展示，点图标弹出全量投递可视化
+// 驾驶舱投递进度的「全部投递明细」弹窗：点图标弹出明细列表
 export default function DeliveryVizModal({ apps }: { apps: VizApp[] }) {
   const [open, setOpen] = useState(false);
   return (
@@ -24,14 +24,14 @@ export default function DeliveryVizModal({ apps }: { apps: VizApp[] }) {
         >
           <div className="modal in" style={{ maxWidth: 920, maxHeight: "88vh" }}>
             <div className="modal-head">
-              <h2>投递进度可视化</h2>
+              <h2>全部投递明细</h2>
               <span style={{ flex: 1 }}></span>
               <button className="close-btn" onClick={() => setOpen(false)}>
                 ✕
               </button>
             </div>
             <div className="modal-body" style={{ overflow: "auto", maxHeight: "82vh" }}>
-              <ApplicationViz apps={apps} />
+              <ApplicationViz apps={apps} hideCharts />
             </div>
           </div>
         </div>

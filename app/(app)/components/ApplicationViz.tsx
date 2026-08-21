@@ -57,7 +57,7 @@ function donutArc(cx: number, cy: number, r: number, thick: number, a0: number, 
   return `M${p0.x.toFixed(2)},${p0.y.toFixed(2)} A${r},${r} 0 ${large} 1 ${p1.x.toFixed(2)},${p1.y.toFixed(2)} L${p2.x.toFixed(2)},${p2.y.toFixed(2)} A${r - thick},${r - thick} 0 ${large} 0 ${p3.x.toFixed(2)},${p3.y.toFixed(2)} Z`;
 }
 
-export default function ApplicationViz({ apps }: { apps: VizApp[] }) {
+export default function ApplicationViz({ apps, hideCharts = false, hideList = false }: { apps: VizApp[]; hideCharts?: boolean; hideList?: boolean }) {
   const [filter, setFilter] = useState<Filter>("all");
   const [tip, setTip] = useState<{ x: number; y: number; text: string } | null>(null);
 
@@ -143,6 +143,7 @@ export default function ApplicationViz({ apps }: { apps: VizApp[] }) {
         ))}
       </div>
 
+      {!hideCharts && (
       <div className="viz-top">
         <div className="viz-card donut-card">
           <div className={"donut-interactive" + (activeFilterKey ? " has-filter" : "")}>
@@ -206,7 +207,9 @@ export default function ApplicationViz({ apps }: { apps: VizApp[] }) {
           </div>
         </div>
       </div>
+      )}
 
+      {!hideList && (
       <div className="viz-bottom">
         <div className="viz-card">
           <h4>
@@ -231,6 +234,7 @@ export default function ApplicationViz({ apps }: { apps: VizApp[] }) {
           </div>
         </div>
       </div>
+      )}
 
       {tip && (
         <div className="viz-tip" style={{ left: Math.min(tip.x + 14, (typeof window !== "undefined" ? window.innerWidth : 1000) - 180), top: tip.y - 10 }}>
