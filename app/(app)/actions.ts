@@ -9,6 +9,7 @@ import {
   interviewQuestions,
   interviewRecap,
   isAIConfigured,
+  parseJobInfo,
 } from "@/lib/ai";
 import { knowledgeStatus } from "@/lib/knowledge";
 
@@ -219,3 +220,61 @@ export async function markChecked(appId: string) {
   revalidatePath("/dashboard");
   revalidatePath("/board");
 }
+
+
+// 子状态（流程细分口径：流程前期[测评/AI面·笔试] / 流程后期[一面·二面·三面] / 结束[Offer·拒]）
+export async function setSubState(appId: string, subState: string, subTone: string) {
+  await prisma.application.update({ where: { id: appId }, data: { subState, subTone } });
+  revalidatePath('/board');
+  revalidatePath('/dashboard');
+}
+
+// AI 智能录入：粘贴投递/岗位描述 → DeepSeek 提取字段 → 入看板（待投递）
+export async function aiAddJob(jdText: string) {
+  if (!isAIConfigured())
+    return { ok: false as const, msg: 'AI 未配置：请在 .env / Vercel 设置 AI_API_KEY（DeepSeek）后使用' };
+  const text = (jdText || '').trim();
+  if (!text) return { ok: false as const, msg: '请先粘贴岗位描述' };
+  try {
+    const info = await parseJobInfo(text);
+    if (!info.jobTitle) return { ok: false as const, msg: '未能从描述中识别出岗位名，请补充信息或手动录入' };
+    const user = await getDemoUser();
+    if (!user) return { ok: false as const, msg: '无用户' };
+
+    const companyName = info.company || '未知公司';
+    let company = await prisma.company.findFirst({ where: { name: companyName } });
+    if (!company)
+      company = await prisma.company.create({
+        data: { name: companyName, nature: '个人投递', location: info.city || null },
+      });
+
+    const dup = await prisma.application.findFirst({
+      where: { userId: user.id, companyId: company.id, jobTitle: info.jobTitle },
+    });
+    if (dup) return { ok: false as const, msg: '该岗位已在看板中' };
+
+    const app = await prisma.application.create({
+      data: {
+        userId: user.id,
+        companyId: company.id,
+        jobTitle: info.jobTitle,
+        stage: 0,
+        stageName: STAGE_NAMES[0],
+        subState: '待评估',
+        subTone: 'gray',
+        priority: '中',
+        nextTodo: '用「简历制作 Skill」生成定向简历',
+        sourceUrl: info.link || null,
+      },
+    });
+    await prisma.applicationEvent.create({
+      data: { applicationId: app.id, type: 'AI 智能录入', toStage: 0, note: 'AI 从投递描述提取：' + companyName + ' · ' + info.jobTitle },
+    });
+    revalidatePath('/board');
+    revalidatePath('/dashboard');
+    return { ok: true as const, msg: '已添加：' + companyName + ' · ' + info.jobTitle, company: companyName, jobTitle: info.jobTitle };
+  } catch (e: unknown) {
+    return { ok: false as const, msg: e instanceof Error ? e.message : String(e) };
+  }
+}
+

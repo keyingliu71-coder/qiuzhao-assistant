@@ -1,4 +1,4 @@
-// SERVER ONLY —— 切勿在客户端组件（"use client"）中 import 本文件，否则 API Key 会泄露到浏览器。
+﻿// SERVER ONLY —— 切勿在客户端组件（"use client"）中 import 本文件，否则 API Key 会泄露到浏览器。
 // 客户端请通过 app/(app)/actions.ts 暴露的 server action 间接调用。
 import { PROFILE } from "./match";
 import {
@@ -212,5 +212,21 @@ export async function structureJD(jd: string): Promise<{ responsibilities: strin
     responsibilities: Array.isArray(j.responsibilities) ? j.responsibilities.map(String).slice(0, 8) : [],
     requirements: Array.isArray(j.requirements) ? j.requirements.map(String).slice(0, 8) : [],
     tags: Array.isArray(j.tags) ? j.tags.map(String).slice(0, 8) : [],
+  };
+}
+// 7) AI 智能录入：从粘贴的投递/岗位描述提取结构化字段（投递看板「添加岗位」）
+export async function parseJobInfo(text: string): Promise<{ company: string; jobTitle: string; city: string; batch: string; deadline: string; link: string }> {
+  const system =
+    "你是招聘信息提取器。从用户粘贴的投递/岗位描述中提取：公司名、岗位名、工作城市、招聘批次(面向届次)、截止时间、投递链接。字段缺失就给空字符串，不要编造。只输出 JSON：{\"company\":\"\",\"jobTitle\":\"\",\"city\":\"\",\"batch\":\"\",\"deadline\":\"\",\"link\":\"\"}";
+  const user = `粘贴内容：\n${text || "-"}`;
+  const raw = await chat(system, user, { json: true, temperature: 0.1, maxTokens: 500 });
+  const j = safeJson(raw);
+  return {
+    company: String(j.company || "").trim(),
+    jobTitle: String(j.jobTitle || "").trim(),
+    city: String(j.city || "").trim(),
+    batch: String(j.batch || "").trim(),
+    deadline: String(j.deadline || "").trim(),
+    link: String(j.link || "").trim(),
   };
 }

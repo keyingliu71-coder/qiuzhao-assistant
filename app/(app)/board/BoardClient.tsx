@@ -1,9 +1,10 @@
-﻿"use client";
+"use client";
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { STAGE_NAMES, SUB_STATE_OPTIONS } from "@/lib/constants";
 import { matchJob, scoreCls } from "@/lib/match";
+import AddJobModal from "../components/AddJobModal";
 import {
   updateStage,
   addTodo,
@@ -170,6 +171,28 @@ export default function BoardClient({
           投递看板
         </h1>
         <span style={{ flex: 1 }}></span>
+        <AddJobModal
+          onAdded={(company, jobTitle) => {
+            const nb: App = {
+              id: `add-${Date.now()}`,
+              jobTitle,
+              companyId: null,
+              companyName: company,
+              location: "",
+              stage: 0,
+              stageName: STAGE_NAMES[0],
+              subState: "待评估",
+              subTone: "gray",
+              priority: "中",
+              nextTodo: "用「简历制作 Skill」生成定向简历",
+              createdAt: new Date().toISOString(),
+              todos: [],
+              events: [],
+            };
+            setApps((arr) => [nb, ...arr]);
+            showToast(`已添加：${company} · ${jobTitle}`);
+          }}
+        />
         <div className="view-switch">
           <button className={view === "kanban" ? "active" : ""} onClick={() => setView("kanban")}>
             看板
