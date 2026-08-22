@@ -1,9 +1,9 @@
-﻿"use client";
+"use client";
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { matchJob, scoreCls, parseJobs } from "@/lib/match";
-import { toggleFavorite } from "@/app/(app)/actions";
+import { toggleFavorite, prunePersonalCompanies } from "@/app/(app)/actions";
 import AddToBoardButton from "../components/AddToBoardButton";
 
 type CompanyLite = {
@@ -276,6 +276,20 @@ export default function CompaniesClient({
             共 <b>{total}</b> 家公司
             {total !== totalAll ? `（已从 ${totalAll} 家筛选）` : ""}
           </span>
+          {natures.includes("个人投递") && (
+            <span
+              className="btn sm"
+              style={{ cursor: "pointer" }}
+              onClick={async () => {
+                if (!confirm("确定删除招聘库中所有「个人投递」性质的公司吗？关联投递会保留（仅解绑公司）。")) return;
+                const r = await prunePersonalCompanies();
+                alert(r.ok ? `已删除 ${r.removed} 家个人投递公司` : (r.msg || "操作失败"));
+                if (r.ok) window.location.reload();
+              }}
+            >
+              🧹 清理个人投递
+            </span>
+          )}
         </div>
 
         <table>

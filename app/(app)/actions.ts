@@ -82,6 +82,23 @@ export async function delApplication(appId: string) {
   return { ok: true };
 }
 
+// 清理「个人投递」性质的公司（误登记到招聘库的私人岗位）
+export async function prunePersonalCompanies() {
+  const user = await getDemoUser();
+  if (!user) return { ok: false, msg: "无用户" };
+  const targets = await prisma.company.findMany({ where: { nature: "个人投递" }, select: { id: true } });
+  const ids = targets.map((t) => t.id);
+  if (ids.length === 0) return { ok: true, removed: 0 };
+  await prisma.$transaction([
+    prisma.application.updateMany({ where: { companyId: { in: ids } }, data: { companyId: null } }),
+    prisma.favorite.deleteMany({ where: { companyId: { in: ids } } }),
+    prisma.company.deleteMany({ where: { id: { in: ids } } }),
+  ]);
+  revalidatePath("/companies");
+  revalidatePath("/board");
+  revalidatePath("/dashboard");
+  return { ok: true, removed: ids.length };
+}
 // 待办 CRUD（返回数据供前端即时刷新）
 export async function addTodo(appId: string, text: string) {
   const t = (text || "").trim();
