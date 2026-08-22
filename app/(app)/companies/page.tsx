@@ -1,4 +1,4 @@
-﻿import { prisma } from "@/lib/prisma";
+import { prisma } from "@/lib/prisma";
 import CompaniesClient from "./CompaniesClient";
 
 export const dynamic = "force-dynamic";
@@ -16,14 +16,19 @@ export default async function CompaniesPage({
   const batch = (sp.batch || "").trim();
   const openId = (sp.open || "").trim();
 
+  // 招聘库默认不展示「个人投递」性质的公司（数据铁律：公共岗位 ≠ 个人投递）。
+  // 仅当用户主动筛选 nature=个人投递 时才显示（配合「🧹 清理个人投递」按钮）。
+  const where =
+    nature !== "" ? { nature } : { nature: { not: "个人投递" } };
+
   // 全量一次拉取，搜索/筛选/分页交给客户端内存完成：
   //  - 修复 offset 翻页因 updateDate 相同导致的重复/跳漏
   //  - 搜索、翻页不再整页 GET（避免 Vercel 冷启动超时丢界面）
   const [batches, natures, companies, totalAll, demoUser] = await Promise.all([
     prisma.company.findMany({ distinct: ["batch"], select: { batch: true }, where: { batch: { not: null } } }),
     prisma.company.findMany({ distinct: ["nature"], select: { nature: true }, where: { nature: { not: null } } }),
-    prisma.company.findMany({ orderBy: [{ updateDate: "desc" }, { name: "asc" }] }),
-    prisma.company.count(),
+    prisma.company.findMany({ where, orderBy: [{ updateDate: "desc" }, { name: "asc" }] }),
+    prisma.company.count({ where }),
     prisma.user.findFirst(),
   ]);
 
