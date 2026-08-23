@@ -6,6 +6,7 @@ import { STAGE_NAMES } from "@/lib/constants";
 import AddToBoardButton from "../components/AddToBoardButton";
 import ApplicationViz from "../components/ApplicationViz";
 import InspectionBlock from "../components/InspectionBlock";
+import SyncNowButton from "../components/SyncNowButton";
 
 export const dynamic = "force-dynamic";
 
@@ -131,6 +132,7 @@ export default async function DashboardPage() {
         <span className="realdata-tag" style={{ opacity: 0.9 }}>
           自动同步 · 上次：{lastSync}
         </span>
+        <SyncNowButton />
       </div>
       <div className="pagedesc">
         每天醒来的第一站：10 秒看清今天的新机会、要紧事和进度。
@@ -170,34 +172,6 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-            <div className="panel" style={{ marginBottom: 16 }}>
-        <h3>
-          🤖 AI 工作台 <Link href="/ai" className="more">进入 →</Link>
-        </h3>
-        <div className="row" style={{ gap: 14, alignItems: "stretch" }}>
-          <div className="skill-card">
-            <span className="sk-ico">📝</span>
-            <div className="sk-name">简历制作 Skill</div>
-            <div className="sk-desc">
-              按 JD 生成 / 修改定向简历，输出"命中证据 + 缺口"，产出可直接投递的版本。
-            </div>
-            <Link href="/ai" className="btn primary sm" style={{ alignSelf: "flex-start" }}>
-              去使用 →
-            </Link>
-          </div>
-          <div className="skill-card sk2">
-            <span className="sk-ico">🎤</span>
-            <div className="sk-name">面试 Skill</div>
-            <div className="sk-desc">
-              面试问题预测 · 模拟面试 · 真实转写复盘，复盘结论经你确认后回写证据库。
-            </div>
-            <Link href="/ai" className="btn primary sm" style={{ alignSelf: "flex-start" }}>
-              去使用 →
-            </Link>
-          </div>
-        </div>
-      </div>
-
       {/* 投递进度可视化：环图 + 柱图内联铺开；全部投递明细收进弹窗 */}
       <div className="panel" style={{ marginBottom: 16 }}>
         <h3>
@@ -212,7 +186,9 @@ export default async function DashboardPage() {
         <div className="panel">
           <h3>
             🌱 {isToday ? "今日新开放岗位" : `最新更新（${newDateLabel}）`}（匹配度已预评）{" "}
-            <span className="more">查看全部 {newCount} 个 →</span>
+            <Link href="/companies?recent=1" className="more">
+              查看最新 {newCount} 家 →
+            </Link>
           </h3>
           <div className="note" style={{ margin: "0 0 10px" }}>
             匹配度由 AI 在岗位入库时<strong>自动预评分</strong>，筛选前即可见，不用逐个点开 JD。

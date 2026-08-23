@@ -62,12 +62,14 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: "无用户" }, { status: 500, headers: corsHeaders() });
     }
 
-    // —— 可选 AI 规范化（复用平台 parseJobInfo）——
-    // 若配置了 AI 且提供了页面原文，用 DeepSeek 提取更规范的 公司/岗位/城市/链接；
-    // 结构化字段优先（扩展已抓到的不为空则不覆盖），未配置 AI 时自动降级，不影响可用性。
-    let ai: { company: string; jobTitle: string; city: string; link: string } | null = null;
+    const extCompany = String(body?.company ?? "").trim();
     const jdText = String(body?.jdText ?? "").trim();
-    if (isAIConfigured() && (jdText || jobTitleRaw)) {
+
+    // —— 可选 AI 规范化（复用平台 parseJobInfo）——
+    // 扩展已能给到结构化公司名时不再调 AI 解析（提速：避免每次收录都要等 DeepSeek + Vercel 冷启动）；
+    // 仅当公司名缺失时才用 AI 从原文提取兜底。AI 失败也不回退整个请求。
+    let ai: { company: string; jobTitle: string; city: string; link: string } | null = null;
+    if (!extCompany && isAIConfigured() && (jdText || jobTitleRaw)) {
       try {
         const p = await parseJobInfo(jdText || jobTitleRaw);
         ai = {
@@ -81,7 +83,6 @@ export async function POST(req: Request) {
       }
     }
 
-    const extCompany = String(body?.company ?? "").trim();
     const companyName = (extCompany || ai?.company || "未知公司").trim();
     const jobTitle = (jobTitleRaw || ai?.jobTitle || "待确认岗位").trim();
     const city = (String(body?.city ?? "").trim() || ai?.city || null) as string | null;
@@ -126,6 +127,20 @@ export async function POST(req: Request) {
       stage = 1; subState = "已投未回"; subTone = "dusty";
     }
 
+    // 投递日期：优先用扩展端用户确认的日期，避免"存入看板后日期 +1 天"（此前用的是服务器收到时间）。
+    // 解析失败则退回服务器当前时间。
+    const appDateRaw = String(body?.applicationDate ?? "").trim();
+    const mDate = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(appDateRaw);
+    let appliedAt: Date = new Date();
+    if (mDate) {
+      const y = Number(mDate[1]);
+      const mo = Number(mDate[2]);
+      const d = Number(mDate[3]);
+      if (mo >= 1 && mo <= 12 && d >= 1 && d <= 31) {
+        appliedAt = new Date(y, mo - 1, d, 12, 0, 0); // 取当天中午，规避时区边界导致跨天
+      }
+    }
+
     const app = await prisma.application.create({
       data: {
         userId: user.id,
@@ -138,6 +153,7 @@ export async function POST(req: Request) {
         priority: "中",
         nextTodo: "用「简历制作 Skill」生成定向简历",
         sourceUrl,
+        createdAt: appliedAt,
       },
     });
     await prisma.applicationEvent.create({

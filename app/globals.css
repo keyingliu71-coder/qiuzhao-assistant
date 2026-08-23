@@ -108,6 +108,8 @@ tr:hover td{background:#faf8f4;}
 .c-count{font-size:12.5px; color:var(--sub);}
 .c-count b{color:var(--ink);}
 .realdata-tag{display:inline-flex; align-items:center; gap:5px; background:var(--sage-bg); color:var(--sage); font-size:11.5px; padding:3px 10px; border-radius:9px; font-weight:600;}
+/* 「仅看最新更新」模式提示条 */
+.recent-banner{display:flex; align-items:center; gap:8px; background:var(--sage-bg); border:1px solid var(--sage); color:var(--ink); font-size:12.5px; padding:9px 12px; border-radius:10px; margin-bottom:14px;}
 .ctable-wrap td:last-child{white-space:nowrap;}
 .cell-ellipsis{display:inline-block; max-width:150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; vertical-align:bottom;}
 .cell-ellipsis.wide{max-width:210px;}
@@ -226,7 +228,7 @@ tr.clickable{cursor:pointer;}
 /* ===== 投递进度可视化 ===== */
 .viz-top{display:grid; grid-template-columns:320px 1fr; gap:14px; margin-bottom:14px;}
 .viz-bottom{display:grid; grid-template-columns:1fr 1fr; gap:14px;}
-.viz-card{border:1px solid var(--line2); border-radius:12px; padding:14px;}
+.viz-card{border:1px solid var(--line2); border-radius:12px; padding:14px; min-width:0;}
 .viz-card h4{font-size:13px; color:var(--ink); margin-bottom:10px; font-weight:600;}
 .donut-wrap{display:flex; align-items:center; gap:20px; flex-wrap:wrap;}
 .donut{width:150px; height:150px; border-radius:50%; position:relative; flex-shrink:0;}
@@ -237,8 +239,8 @@ tr.clickable{cursor:pointer;}
 .donut-legend{display:flex; flex-direction:column; gap:10px; font-size:12.5px; color:var(--sub);}
 .donut-legend span{display:flex; align-items:center; gap:7px;}
 .donut-legend .dot{width:11px; height:11px; border-radius:3px; flex-shrink:0;}
-.barchart{display:flex; align-items:flex-end; gap:8px; height:150px;}
-.bar-col{flex:1; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; height:100%; gap:5px; min-width:0;}
+.barchart{display:flex; align-items:flex-end; gap:8px; height:150px; overflow-x:auto; padding-bottom:6px;}
+.bar-col{flex:1 1 56px; min-width:44px; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; height:100%; gap:5px;}
 .bar{width:100%; max-width:46px; background:linear-gradient(180deg,var(--sage),#5f7a62); border-radius:6px 6px 3px 3px; display:flex; align-items:flex-start; justify-content:center; padding-top:4px; font-size:11px; font-weight:600; color:#fff; min-height:8px;}
 .bar-label{font-size:10.5px; color:var(--muted); white-space:nowrap;}
 .viz-item{display:flex; align-items:center; gap:8px; padding:7px 0; border-bottom:1px dashed var(--line2); font-size:12.5px;}
@@ -254,6 +256,13 @@ tr.clickable{cursor:pointer;}
 .viz-filters .chip:hover{border-color:var(--sage); color:var(--ink); transform:translateY(-1px); box-shadow:0 2px 6px rgba(110,100,80,.12);}
 .viz-filters .chip.on{background:var(--chip, var(--sage)); border-color:var(--chip, var(--sage)); color:#fff; font-weight:600;}
 .viz-filters .chip.on .dot{background:#fff;}
+/* 柱状图顶部周时间轴 */
+.viz-weekbar{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px;}
+.viz-weekbar .chip{display:inline-flex; align-items:center; gap:5px; border:1px solid var(--line); background:var(--paper); border-radius:14px; padding:4px 11px; font-size:12px; color:var(--sub); cursor:pointer; user-select:none; transition:all .15s;}
+.viz-weekbar .chip b{font-weight:600; color:var(--dusty);}
+.viz-weekbar .chip:hover{border-color:var(--sage); color:var(--ink); transform:translateY(-1px); box-shadow:0 2px 6px rgba(110,100,80,.12);}
+.viz-weekbar .chip.on{background:var(--sage); border-color:var(--sage); color:#fff; font-weight:600;}
+.viz-weekbar .chip.on b{color:#fff;}
 .donut-interactive{position:relative; width:170px; flex-shrink:0; margin:0 auto;}
 .donut-seg{cursor:pointer; transition:transform .15s, opacity .15s, filter .15s;}
 .donut-seg:hover{transform:scale(1.05); opacity:1; filter:brightness(1.06);}
@@ -276,6 +285,25 @@ tr.clickable{cursor:pointer;}
 .viz-item .viz-date{color:var(--muted); font-size:11.5px; white-space:nowrap; flex-shrink:0;}
 .viz-item .viz-link{color:var(--dusty); font-size:13px; flex-shrink:0;}
 .viz-tip{position:fixed; pointer-events:none; background:var(--ink); color:#fff; font-size:12px; padding:6px 11px; border-radius:8px; box-shadow:0 6px 18px rgba(70,60,45,.28); z-index:400; white-space:nowrap; transform:translateY(-50%);}
+/* 柱状图浮窗：悬停展示当天/当周岗位明细 */
+.viz-pop{position:fixed; z-index:450; width:296px; max-height:240px; display:flex; flex-direction:column; background:var(--paper); border:1px solid var(--line2); border-radius:12px; box-shadow:0 10px 30px rgba(70,60,45,.22); overflow:hidden;}
+.viz-pop-head{display:flex; align-items:center; gap:6px; padding:8px 12px; font-size:12px; font-weight:600; color:var(--ink); background:var(--sage-bg); border-bottom:1px solid var(--line2);}
+.viz-pop-list{overflow-y:auto; padding:6px;}
+.viz-pop-list::-webkit-scrollbar{width:6px;}
+.viz-pop-list::-webkit-scrollbar-thumb{background:#d6d0c4; border-radius:4px;}
+.viz-pop-item{display:flex; align-items:center; gap:7px; padding:6px 8px; border-radius:8px; font-size:12px; cursor:pointer; transition:background .12s;}
+.viz-pop-item:hover{background:var(--sage-bg);}
+.viz-pop-item .viz-co{font-weight:600; color:var(--ink); white-space:nowrap; flex-shrink:0;}
+.viz-pop-item .viz-title{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--sub);}
+.viz-pop-item .viz-date{color:var(--muted); font-size:11px; white-space:nowrap; flex-shrink:0;}
+/* 点击柱子后固定的岗位明细面板 */
+.viz-pin{margin-top:12px; border:1px solid var(--line2); border-left:3px solid var(--terra); border-radius:10px; overflow:hidden;}
+.viz-pin-head{display:flex; align-items:center; gap:6px; padding:8px 12px; font-size:12.5px; font-weight:600; color:var(--ink); background:var(--sage-bg);}
+.viz-pin-close{margin-left:auto; color:var(--sub); cursor:pointer; font-size:12px; user-select:none;}
+.viz-pin-close:hover{color:var(--terra);}
+.viz-pin-list{padding:6px; max-height:220px; overflow-y:auto;}
+.viz-pin-list .viz-pop-item{border-bottom:1px dashed var(--line2); border-radius:0;}
+.viz-pin-list .viz-pop-item:last-child{border-bottom:none;}
 .viz-bottom .viz-card h4 .more{float:right; font-size:12px; color:var(--dusty); cursor:pointer;}
 .viz-bottom .viz-card h4 .more:hover{text-decoration:underline;}
 

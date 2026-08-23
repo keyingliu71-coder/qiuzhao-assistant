@@ -3,7 +3,7 @@ import CompaniesClient from "./CompaniesClient";
 
 export const dynamic = "force-dynamic";
 
-type SP = { q?: string; nature?: string; batch?: string; open?: string };
+type SP = { q?: string; nature?: string; batch?: string; open?: string; recent?: string };
 
 export default async function CompaniesPage({
   searchParams,
@@ -15,6 +15,7 @@ export default async function CompaniesPage({
   const nature = (sp.nature || "").trim();
   const batch = (sp.batch || "").trim();
   const openId = (sp.open || "").trim();
+  const recentOnly = sp.recent === "1";
 
   // 招聘库默认不展示「个人投递」性质的公司（数据铁律：公共岗位 ≠ 个人投递）。
   // 仅当用户主动筛选 nature=个人投递 时才显示（配合「🧹 清理个人投递」按钮）。
@@ -64,6 +65,7 @@ export default async function CompaniesPage({
       batches={batches.map((b) => b.batch as string).filter(Boolean)}
       natures={natures.map((n) => n.nature as string).filter(Boolean)}
       totalAll={totalAll}
+      recentOnly={recentOnly}
       openCompany={
         openCompany
           ? {

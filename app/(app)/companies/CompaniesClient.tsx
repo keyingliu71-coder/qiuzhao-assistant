@@ -30,12 +30,14 @@ export default function CompaniesClient({
   natures,
   totalAll,
   openCompany,
+  recentOnly: recentOnlyProp = false,
 }: {
   companies: CompanyLite[];
   batches: string[];
   natures: string[];
   totalAll: number;
   openCompany: CompanyLite | null;
+  recentOnly?: boolean;
 }) {
   const [modalOpen, setModalOpen] = useState<boolean>(!!openCompany);
   const [cur, setCur] = useState<CompanyLite | null>(openCompany);
@@ -46,6 +48,8 @@ export default function CompaniesClient({
   const [nature, setNature] = useState("");
   const [batch, setBatch] = useState("");
   const [page, setPage] = useState(1);
+  // 「仅看最新更新」模式（从首页驾驶舱进入）
+  const [recentOnly, setRecentOnly] = useState<boolean>(recentOnlyProp);
 
   // 搜索 + 筛选（内存过滤，即时响应，无整页刷新）
   const filtered = useMemo(() => {
@@ -61,8 +65,14 @@ export default function CompaniesClient({
       );
     if (nature) list = list.filter((c) => c.nature === nature);
     if (batch) list = list.filter((c) => c.batch === batch);
+    if (recentOnly) {
+      // 只看最新更新日期那批公司
+      let maxDate = "";
+      for (const c of list) if (c.updateDate && c.updateDate > maxDate) maxDate = c.updateDate;
+      if (maxDate) list = list.filter((c) => c.updateDate === maxDate);
+    }
     return list;
-  }, [all, q, nature, batch]);
+  }, [all, q, nature, batch, recentOnly]);
 
   const pages = Math.max(1, Math.ceil(filtered.length / PAGE));
   const safePage = Math.min(page, pages);
@@ -239,6 +249,19 @@ export default function CompaniesClient({
       <div className="pagedesc">
         点任意公司「查看岗位」弹出小窗：左侧岗位列表，右侧 JD 详情 + 匹配分析 + 官方投递入口。支持即时搜索与本地翻页（共 {totalAll} 家）。
       </div>
+
+      {recentOnly && (
+        <div className="recent-banner">
+          📌 当前仅显示「最新更新」的公司（共 {total} 家）
+          <span
+            className="btn sm"
+            style={{ cursor: "pointer", marginLeft: "auto", flexShrink: 0 }}
+            onClick={() => setRecentOnly(false)}
+          >
+            显示全部 {totalAll} 家
+          </span>
+        </div>
+      )}
 
       <div className="ctable-wrap">
         <div className="ctable-tools">
