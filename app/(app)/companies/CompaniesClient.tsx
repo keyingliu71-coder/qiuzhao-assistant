@@ -31,6 +31,7 @@ export default function CompaniesClient({
   totalAll,
   openCompany,
   recentOnly: recentOnlyProp = false,
+  topIds = null,
 }: {
   companies: CompanyLite[];
   batches: string[];
@@ -38,6 +39,7 @@ export default function CompaniesClient({
   totalAll: number;
   openCompany: CompanyLite | null;
   recentOnly?: boolean;
+  topIds?: string[] | null;
 }) {
   const [modalOpen, setModalOpen] = useState<boolean>(!!openCompany);
   const [cur, setCur] = useState<CompanyLite | null>(openCompany);
@@ -50,6 +52,8 @@ export default function CompaniesClient({
   const [page, setPage] = useState(1);
   // 「仅看最新更新」模式（从首页驾驶舱进入）
   const [recentOnly, setRecentOnly] = useState<boolean>(recentOnlyProp);
+  // 「匹配度 Top」模式（从首页「高匹配推荐」进入）
+  const [topOnly, setTopOnly] = useState<boolean>(!!topIds && topIds.length > 0);
 
   // 搜索 + 筛选（内存过滤，即时响应，无整页刷新）
   const filtered = useMemo(() => {
@@ -71,8 +75,15 @@ export default function CompaniesClient({
       for (const c of list) if (c.updateDate && c.updateDate > maxDate) maxDate = c.updateDate;
       if (maxDate) list = list.filter((c) => c.updateDate === maxDate);
     }
+    if (topOnly && topIds && topIds.length) {
+      // 仅匹配度最高的那批，且按匹配度分数从高到低展示（与首页一致）
+      const byId = new Map(all.map((c) => [c.id, c]));
+      list = topIds
+        .map((id) => byId.get(id))
+        .filter((c): c is CompanyLite => !!c && list.includes(c));
+    }
     return list;
-  }, [all, q, nature, batch, recentOnly]);
+  }, [all, q, nature, batch, recentOnly, topOnly, topIds]);
 
   const pages = Math.max(1, Math.ceil(filtered.length / PAGE));
   const safePage = Math.min(page, pages);
@@ -257,6 +268,19 @@ export default function CompaniesClient({
             className="btn sm"
             style={{ cursor: "pointer", marginLeft: "auto", flexShrink: 0 }}
             onClick={() => setRecentOnly(false)}
+          >
+            显示全部 {totalAll} 家
+          </span>
+        </div>
+      )}
+
+      {topOnly && (
+        <div className="recent-banner">
+          🔥 当前按与你的经历库匹配度从高到低展示 Top 公司（共 {total} 家）
+          <span
+            className="btn sm"
+            style={{ cursor: "pointer", marginLeft: "auto", flexShrink: 0 }}
+            onClick={() => setTopOnly(false)}
           >
             显示全部 {totalAll} 家
           </span>

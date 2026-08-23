@@ -31,24 +31,18 @@ export default async function DashboardPage() {
 
   // 真实「今日」（offerio 使用 YYYY/MM/DD）
   const now = new Date();
-  const p2 = (n: number) => String(n).padStart(2, "0");
-  const todayStr = `${now.getFullYear()}/${p2(now.getMonth() + 1)}/${p2(now.getDate())}`;
 
-  const recent = await prisma.company.findMany({
-    where: { updateDate: { not: null } },
-    orderBy: { updateDate: "desc" },
-    take: 60,
+  // 高匹配推荐：与「经历库」匹配度最高的 60 家（匹配度已预评，实时体现最新数据，不按入库日期分组）
+  const TOP_N = 60;
+  const scoreCandidates = await prisma.company.findMany({
+    where: { nature: { not: "个人投递" } },
   });
-  const lastDate = recent[0]?.updateDate ?? "";
-
-  const todayList = await prisma.company.findMany({
-    where: { updateDate: todayStr },
-    orderBy: { name: "asc" },
-  });
-  const isToday = todayList.length > 0;
-  const newList = isToday ? todayList : recent;
+  const newList = scoreCandidates
+    .map((c) => ({ c, m: getScore(c) }))
+    .sort((a, b) => b.m.score - a.m.score)
+    .slice(0, TOP_N)
+    .map((s) => s.c);
   const newCount = newList.length;
-  const newDateLabel = isToday ? todayStr : lastDate;
   const newShow = newList.slice(0, 6);
 
   // 自动同步状态
@@ -141,12 +135,11 @@ export default async function DashboardPage() {
       <div className="stat-grid">
         <div className="stat-card hero">
           <div className="s-label">
-            {isToday ? "今日新开放岗位" : `最新更新（${newDateLabel}）`}{" "}
-            <span className="badge b-terra">筛选前已评分</span>
+            🔥 高匹配推荐岗位 <span className="badge b-terra">匹配度已预评</span>
           </div>
           <div className="s-num">{newCount}</div>
           <div className="s-sub">
-            来自 {newShow.length} 家公司 · 高匹配 {highMatch} 个
+            与你的经历库匹配度 Top {newCount} · 高匹配(≥85) {highMatch} 个
           </div>
         </div>
         <div className="stat-card">
@@ -185,13 +178,13 @@ export default async function DashboardPage() {
       <div className="dash-2col">
         <div className="panel">
           <h3>
-            🌱 {isToday ? "今日新开放岗位" : `最新更新（${newDateLabel}）`}（匹配度已预评）{" "}
-            <Link href="/companies?recent=1" className="more">
-              查看最新 {newCount} 家 →
+            🔥 高匹配推荐（匹配度已预评）{" "}
+            <Link href="/companies?top=60" className="more">
+              查看全部 {newCount} 家 →
             </Link>
           </h3>
           <div className="note" style={{ margin: "0 0 10px" }}>
-            匹配度由 AI 在岗位入库时<strong>自动预评分</strong>，筛选前即可见，不用逐个点开 JD。
+            匹配度由 AI 在岗位入库时<strong>自动预评分</strong>，此处按与你的经历库匹配度从高到低为你筛出 Top 公司，数据为最新同步结果。
           </div>
           {newShow.map((c) => {
             const m = getScore(c);

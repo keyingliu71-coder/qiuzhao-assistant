@@ -1,9 +1,10 @@
 import { prisma } from "@/lib/prisma";
+import { getScore } from "@/lib/score";
 import CompaniesClient from "./CompaniesClient";
 
 export const dynamic = "force-dynamic";
 
-type SP = { q?: string; nature?: string; batch?: string; open?: string; recent?: string };
+type SP = { q?: string; nature?: string; batch?: string; open?: string; recent?: string; top?: string };
 
 export default async function CompaniesPage({
   searchParams,
@@ -16,6 +17,7 @@ export default async function CompaniesPage({
   const batch = (sp.batch || "").trim();
   const openId = (sp.open || "").trim();
   const recentOnly = sp.recent === "1";
+  const topN = sp.top ? Number(sp.top) || 0 : 0;
 
   // 招聘库默认不展示「个人投递」性质的公司（数据铁律：公共岗位 ≠ 个人投递）。
   // 仅当用户主动筛选 nature=个人投递 时才显示（配合「🧹 清理个人投递」按钮）。
@@ -45,6 +47,16 @@ export default async function CompaniesPage({
     ? companies.find((c) => c.id === openId) ?? null
     : null;
 
+  // 匹配度 Top：与经历库评分最高的 N 家（与首页「高匹配推荐」一致），按分数降序
+  const topIds =
+    topN > 0
+      ? companies
+          .map((c) => ({ c, m: getScore(c) }))
+          .sort((a, b) => b.m.score - a.m.score)
+          .slice(0, topN)
+          .map((s) => s.c.id)
+      : null;
+
   return (
     <CompaniesClient
       companies={companies.map((c) => ({
@@ -66,6 +78,7 @@ export default async function CompaniesPage({
       natures={natures.map((n) => n.nature as string).filter(Boolean)}
       totalAll={totalAll}
       recentOnly={recentOnly}
+      topIds={topIds}
       openCompany={
         openCompany
           ? {
