@@ -85,9 +85,9 @@ export type SyncResult = { created: number; updated: number; total: number; sign
 
 // 原生批量 upsert：一条 SQL 写入一整批，避免逐条 upsert 长时间占用连接
 async function bulkUpsert(companies: OfferioCompany[], existingSet: Set<string>) {
-  const COLS = ['id', 'sourceId', 'name', 'nature', 'industry', 'batch', 'target', 'location', 'positions', 'updateDate', 'deadline', 'applyLink', 'hasWrittenTest'];
+  const COLS = ['id', 'sourceId', 'name', 'nature', 'industry', 'batch', 'target', 'location', 'positions', 'updateDate', 'deadline', 'applyLink', 'hasWrittenTest', 'matchScore', 'matchDetail'];
   const colList = COLS.map((c) => `"${c}"`).join(', ');
-  const updateSet = ['name', 'nature', 'industry', 'batch', 'target', 'location', 'positions', 'updateDate', 'deadline', 'applyLink', 'hasWrittenTest']
+  const updateSet = ['name', 'nature', 'industry', 'batch', 'target', 'location', 'positions', 'updateDate', 'deadline', 'applyLink', 'hasWrittenTest', 'matchScore', 'matchDetail']
     .map((c) => `"${c}" = EXCLUDED."${c}"`)
     .join(', ');
   const BATCH = 300;
@@ -100,7 +100,9 @@ async function bulkUpsert(companies: OfferioCompany[], existingSet: Set<string>)
     const values: unknown[] = [];
     for (const c of slice) {
       const d = normalize(c);
-      const row = [randomUUID(), c.id, d.name, d.nature, d.industry, d.batch, d.target, d.location, d.positions, d.updateDate, d.deadline, d.applyLink, d.hasWrittenTest];
+      // matchScore/matchDetail 置于 NULL：数据一旦变更即被重新拉入预评分队列，
+      // 让「根据经历库匹配 JD」的分数始终跟随最新经历库与最新岗位数据（不再停留在旧评分）。
+      const row = [randomUUID(), c.id, d.name, d.nature, d.industry, d.batch, d.target, d.location, d.positions, d.updateDate, d.deadline, d.applyLink, d.hasWrittenTest, null, null];
       phs.push(`(${row.map((_, j) => `$${values.length + j + 1}`).join(', ')})`);
       values.push(...row);
       if (existingSet.has(c.id)) updated++;
