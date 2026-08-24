@@ -126,19 +126,14 @@ export async function runSyncOnce(): Promise<SyncResult> {
   const p1 = await fetchPage(1);
   const totalPages = p1.totalPages || 1;
 
-  // 决定本轮拉取范围
-  let fromPage: number;
-  let toPage: number;
-  if (!hasEverSynced || (meta?.cursor ?? 1) < totalPages) {
-    // 全量补齐模式：从上次游标继续，每轮 PAGE_LIMIT 页
-    const cursor = meta?.cursor ?? 1;
-    fromPage = cursor;
-    toPage = Math.min(cursor + PAGE_LIMIT - 1, totalPages);
-  } else {
-    // 已全量完成 → 增量模式：只拉最前面 PAGE_LIMIT 页
-    fromPage = 1;
-    toPage = Math.min(PAGE_LIMIT, totalPages);
-  }
+  // 决定本轮拉取范围：
+  //  - 首次同步：从上次游标继续，每轮 PAGE_LIMIT 页，直到全量拉完（避免单次执行超时）
+  //  - 已同步过：以后每轮都刷新最前面的 PAGE_LIMIT 页（最近更新），保证“最新岗位”紧跟源头
+  const cursor = meta?.cursor ?? 1;
+  const fromPage: number = hasEverSynced ? 1 : cursor;
+  const toPage: number = hasEverSynced
+    ? Math.min(PAGE_LIMIT, totalPages)
+    : Math.min(cursor + PAGE_LIMIT - 1, totalPages);
 
   console.log(`[sync] 本轮拉取 page ${fromPage}..${toPage} / ${totalPages}`);
   await setMeta({ status: 'syncing', cursor: fromPage });
@@ -167,7 +162,9 @@ export async function runSyncOnce(): Promise<SyncResult> {
   const { created, updated } = await bulkUpsert(list, existingSet);
 
   const done = toPage >= totalPages;
-  const signature = done ? computeSignature(p1) : meta?.signature ?? null;
+  // 签名只在“真正刷新过第 1 页”（fromPage===1）或“首次全量跑完”（done）时才更新；
+  // 否则保留旧值，避免“签名看似最新、数据却仍陈旧”导致永不重同步。
+  const signature = fromPage === 1 || done ? computeSignature(p1) : meta?.signature ?? null;
   const finalCursor = done ? totalPages : toPage + 1;
 
   await setMeta({

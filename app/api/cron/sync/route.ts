@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { isChanged, runSyncOnce, prescorePending } from "@/lib/sync";
+import { runSyncOnce, prescorePending } from "@/lib/sync";
 
 // Vercel Cron 触发入口：每次调用执行一轮同步 + 顺带消化 AI 预评分队列
 export const dynamic = "force-dynamic";
@@ -17,12 +17,8 @@ export async function GET(req: Request) {
   }
 
   try {
-    // 先做廉价指纹比对：数据没变化则无需全量拉取，立即返回
-    const changed = await isChanged();
-    if (!changed) {
-      return NextResponse.json({ ok: true, changed: false, note: "数据无变化，跳过全量同步" });
-    }
-
+    // 每次调用都真正执行一轮同步（刷新最近 PAGE_LIMIT 页并纠正数据/签名），
+    // 不依赖 isChanged 指纹短路，避免“签名看似最新、数据却陈旧”造成永久不同步。
     const r = await runSyncOnce();
     const p = await prescorePending(20).catch(() => ({ scored: 0, skipped: true }));
     return NextResponse.json({ ok: true, changed: true, created: r.created, updated: r.updated, total: r.total, prescored: p.scored });
